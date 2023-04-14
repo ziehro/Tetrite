@@ -7,9 +7,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
