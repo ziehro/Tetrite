@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Tetrite</string>
+    <string name="speed_value">5</string>
 </resources>

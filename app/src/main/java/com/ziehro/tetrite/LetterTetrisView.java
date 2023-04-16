@@ -1,13 +1,18 @@
 package com.ziehro.tetrite;
 
+import android.app.Dialog;
+import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Handler;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
@@ -32,13 +37,13 @@ public class LetterTetrisView extends View {
     private int blockSize;
     int maxLength = 10;
     private int boardWidth = 10;
-    private int boardHeight = 8;
+    private int boardHeight = 16;
     private Paint paint;
     private Tetromino currentTetromino;
     private char[][] gameBoard;
     private Random random;
     private List<String> wordsToCheck;
-    private static final long DROP_INTERVAL = 200; // Interval between drops in milliseconds
+    private static final long DROP_INTERVAL = 400; // Interval between drops in milliseconds
     private Handler gameHandler;
     //private Runnable gameLoop;
      Set<String> dictionary;
@@ -46,6 +51,26 @@ public class LetterTetrisView extends View {
 
     private Handler handler;
     private AtomicBoolean running = new AtomicBoolean(false);
+    private static final String SHARED_PREFERENCES_NAME = "tetris_preferences";
+    private static final String KEY_GAME_SPEED = "game_speed";
+    private TrieNode dictionaryTrie = new TrieNode();
+    AtomicBoolean isPaused = new AtomicBoolean(false);
+
+    private Dialog progressDialog;
+
+    private void showProgressDialog() {
+        progressDialog = new Dialog(getContext());
+        progressDialog.setContentView(R.layout.progress_dialog);
+        progressDialog.setCancelable(false);
+        progressDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        progressDialog.show();
+    }
+
+    private void dismissProgressDialog() {
+        if (progressDialog != null && progressDialog.isShowing()) {
+            progressDialog.dismiss();
+        }
+    }
 
 
 
@@ -74,12 +99,7 @@ public class LetterTetrisView extends View {
         random = new Random();
         currentTetromino = createRandomTetromino();
 
-        try {
-            dictionary = loadDictionary();
-        } catch (IOException e) {
-            e.printStackTrace();
-            // Handle the exception, e.g., show an error message to the user.
-        }
+        loadDictionary();
         startGame();
 
     }
@@ -99,9 +119,13 @@ public class LetterTetrisView extends View {
 
 
     public void startGame() {
+
+        SharedPreferences sharedPreferences = getContext().getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        int gameSpeed = sharedPreferences.getInt(KEY_GAME_SPEED, 500); // Use a default value if no speed setting is stored
+
         executorService = Executors.newSingleThreadScheduledExecutor();
         running.set(true);
-        executorService.scheduleAtFixedRate(gameLoop, 0, 100, TimeUnit.MILLISECONDS);
+        executorService.scheduleAtFixedRate(gameLoop, 0, gameSpeed, TimeUnit.MILLISECONDS);
     }
 
     public void stopGame() {
@@ -114,6 +138,38 @@ public class LetterTetrisView extends View {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+    }
+    public void reset() {
+        // Clear the game board by setting each cell to an empty character
+        for (int row = 0; row < gameBoard.length; row++) {
+            for (int col = 0; col < gameBoard[row].length; col++) {
+                gameBoard[row][col] = '.';
+            }
+        }
+        //onDraw(canvas);
+
+        // Initialize a new current tetromino and set its position to the starting position
+        //currentTetromino = new Tetromino();
+        //currentTetrominoX = gameBoard[0].length / 2 - 1;
+        //currentTetrominoY = 0;
+
+        // Clear the found words list
+        //foundWords.clear();
+    }
+
+
+    public void pauseGame() {
+        if (!isPaused.get()) {
+            stopGame();
+            isPaused.set(true);
+        }
+    }
+
+    public void resumeGame() {
+        if (isPaused.get()) {
+            startGame();
+            isPaused.set(false);
         }
     }
 
@@ -181,7 +237,7 @@ public class LetterTetrisView extends View {
                 }
 
                 if (isHighlighted) {
-                    paint.setColor(Color.BLUE);
+                    paint.setColor(Color.YELLOW);
                     //Toast.makeText(getContext(),"Blue? " + paint.getColor() , Toast.LENGTH_SHORT ).show();
                 } else {
                     paint.setColor(Color.BLACK);
@@ -373,6 +429,7 @@ public class LetterTetrisView extends View {
     }
 
     public Map<String, List<int[]>> findWords(char[][] board, Set<String> dictionary) {
+        showProgressDialog();
         int rows = board.length;
         int cols = board[0].length;
         Map<String, List<int[]>> foundWords = new HashMap<>();
@@ -383,7 +440,7 @@ public class LetterTetrisView extends View {
                 findWordsInBoardHelper(board, visited, dictionary, "", i, j, foundWords);
             }
         }
-
+        dismissProgressDialog();
         return foundWords;
     }
 
@@ -436,18 +493,19 @@ public class LetterTetrisView extends View {
 
 
     private void findWordsInBoardHelper(char[][] board, boolean[][] visited, Set<String> dictionary, String currentWord, int i, int j, Map<String, List<int[]>> foundWords) {
+
         if (i < 0 || i >= board.length || j < 0 || j >= board[0].length || visited[i][j]) {
             return;
         }
 
         currentWord += board[i][j];
-        if (!isPrefix(dictionary, currentWord)) {
-            return;
-        }
+       // if (!isPrefix(dictionary, currentWord)) {
+        //    return;
+       // }
 
         visited[i][j] = true;
 
-        if (dictionary.contains(currentWord)) {
+        if (dictionaryTrie.search(currentWord)) {
             foundWords.putIfAbsent(currentWord, new ArrayList<>());
             foundWords.get(currentWord).add(new int[]{i, j});
         }
@@ -472,18 +530,20 @@ public class LetterTetrisView extends View {
     }
 
 
-    private Set<String> loadDictionary() throws IOException {
-        Set<String> dict = new HashSet<>();
-        Resources res = getResources();
-        InputStream inputStream = res.openRawResource(R.raw.dictionary);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
 
-        String line;
-        while ((line = reader.readLine()) != null) {
-            dict.add(line.trim());
+    private void loadDictionary() {
+        try {
+            InputStream inputStream = getResources().openRawResource(R.raw.dick_real_short);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String word = line.trim().toLowerCase();
+                dictionaryTrie.insert(word);
+            }
+            reader.close();
+        } catch (IOException e) {
+            Log.e("Hereio", "Error loading dictionary", e);
         }
-
-        reader.close();
-        return dict;
     }
+
 }
