@@ -98,8 +98,7 @@ public class MainActivity extends AppCompatActivity{
     private void restartGame() {
         LetterTetrisView tetrisGameView = findViewById(R.id.gameView);
         tetrisGameView.stopGame();
-        tetrisGameView.reset();
-        tetrisGameView.invalidate();
+        tetrisGameView.resetGame();
         tetrisGameView.startGame();
     }
 }

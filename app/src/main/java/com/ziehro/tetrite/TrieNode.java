@@ -1,45 +1,61 @@
 package com.ziehro.tetrite;
 
+import android.util.Log;
+
 public class TrieNode {
-    private TrieNode[] children;
-    public boolean isEndOfWord;
+    private final int ALPHABET_SIZE = 52;
+    TrieNode[] children;
+    boolean isWord;
 
     public TrieNode() {
-        children = new TrieNode[26]; // 26 letters in the alphabet
-        isEndOfWord = false;
+        this.children = new TrieNode[ALPHABET_SIZE];
+        this.isWord = false;
     }
 
     public void insert(String word) {
-        TrieNode node = this;
+        TrieNode currentNode = this;
         for (char c : word.toCharArray()) {
-            c = Character.toLowerCase(c); // Convert the character to lowercase
-            int index = c - 'a';
-            if (index < 0 || index >= children.length) { // Check if the index is within the valid range
-                continue;
+            int index = Character.toLowerCase(c) - 'a'; // Adjust the index calculation to handle both lowercase and uppercase letters
+            if (currentNode.children[index] == null) {
+                currentNode.children[index] = new TrieNode();
             }
-            if (node.children[index] == null) {
-                node.children[index] = new TrieNode();
-            }
-            node = node.children[index];
+            currentNode = currentNode.children[index];
         }
-        node.isEndOfWord = true;
+        currentNode.isWord = true;
     }
-
 
     public boolean search(String word) {
-        TrieNode node = this;
+        TrieNode currentNode = this;
         for (char c : word.toCharArray()) {
-            c = Character.toLowerCase(c); // Convert the character to lowercase
-            int index = c - 'a';
-            if (index < 0 || index >= children.length) { // Check if the index is within the valid range
+
+            int index = Character.toLowerCase(c) - 'a'; // Adjust the index calculation to handle both lowercase and uppercase letters
+
+            if (currentNode.children[index] == null) {
                 return false;
             }
-            if (node.children[index] == null) {
-                return false;
-            }
-            node = node.children[index];
+            currentNode = currentNode.children[index];
         }
-        return node.isEndOfWord;
+        return currentNode.isWord;
     }
 
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        buildString(this, "", sb);
+        return sb.toString();
+    }
+
+    private void buildString(TrieNode node, String prefix, StringBuilder sb) {
+        if (node.isWord) {
+            sb.append(prefix);
+            sb.append("\n");
+        }
+
+        for (int i = 0; i < node.children.length; i++) {
+            TrieNode child = node.children[i];
+            if (child != null) {
+                char letter = (char) (i + 'a');
+                buildString(child, prefix + letter, sb);
+            }
+        }
+    }
 }

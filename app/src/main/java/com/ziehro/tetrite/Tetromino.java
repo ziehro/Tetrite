@@ -53,7 +53,7 @@ public class Tetromino {
     public Tetromino(Type type, char[][] shape) {
         this.type = type;
         this.shape = shape;
-        this.position = new Point(0, 0); // Default starting position, can be adjusted
+        this.position = new Point(LetterTetrisView.boardWidth / 2 - shape[0].length / 2, 0); // Default starting position, can be adjusted
     }
 
     public Type getType() {
@@ -65,6 +65,7 @@ public class Tetromino {
     }
 
     public void draw(Canvas canvas, Paint paint, int blockSize) {
+
         for (int i = 0; i < shape.length; i++) {
             for (int j = 0; j < shape[i].length; j++) {
                 if (shape[i][j] != 0) {
