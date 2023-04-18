@@ -3,6 +3,7 @@ package com.ziehro.tetrite;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Canvas;
@@ -16,6 +17,8 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -52,6 +55,7 @@ public class LetterTetrisView extends View {
     private TrieNode dictionaryTrie = new TrieNode();
     AtomicBoolean isPaused = new AtomicBoolean(false);
     private Dialog progressDialog;
+    boolean[][] highlightedCells = new boolean[0][];
     private void showProgressDialog() {
         progressDialog = new Dialog(getContext());
         progressDialog.setContentView(R.layout.progress_dialog);
@@ -163,9 +167,9 @@ public class LetterTetrisView extends View {
         if (gameOver) {
             //stopGame();
             char[][] board = gameBoard;
-            Map<String, List<int[]>> foundWords = findWords(board, dictionary);
-            Toast.makeText(getContext(),"Found: " + foundWords , Toast.LENGTH_SHORT ).show();
-            highlightFoundWords(canvas, paint, foundWords);
+            findWords(board, dictionary);
+            Toast.makeText(getContext(),"Found: "   , Toast.LENGTH_SHORT ).show();
+            highlightWords();
 
             return;
         } else {
@@ -409,20 +413,88 @@ public class LetterTetrisView extends View {
         return rotated;
     }
 
-    public Map<String, List<int[]>> findWords(char[][] board, Set<String> dictionary) {
-        showProgressDialog();
-        int rows = board.length;
-        int cols = board[0].length;
+    private void findWords(char[][] board, Set<String> dictionary) {
         Map<String, List<int[]>> foundWords = new HashMap<>();
-        boolean[][] visited = new boolean[rows][cols];
+        boolean[][] visited = new boolean[board.length][board[0].length];
 
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
+        for (int i = 0; i < board.length; i++) {
+            for (int j = 0; j < board[0].length; j++) {
                 findWordsInBoardHelper(board, visited, dictionary, "", i, j, foundWords);
             }
         }
-        dismissProgressDialog();
-        return foundWords;
+
+        if (foundWords.isEmpty()) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+            builder.setTitle("No Words Found");
+            builder.setPositiveButton("Restart", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i) {
+                    resetGame();
+                }
+            });
+            builder.show();
+        } else {
+            // Highlight the found words in blue
+            paint.setColor(Color.BLUE);
+            for (String word : foundWords.keySet()) {
+                List<int[]> positions = foundWords.get(word);
+                for (int[] pos : positions) {
+                    int x = pos[1] * blockSize;
+                    int y = pos[0] * blockSize;
+                    Canvas canvas = new Canvas();
+                    canvas.drawRect(x, y, x + blockSize, y + blockSize, paint);
+                }
+            }
+        }
+    }
+
+    private void highlightWords() {
+        // Loop through each row
+
+        for (int i = 0; i < boardHeight; i++) {
+            String currentWord = "";
+            int wordStartIndex = 0;
+            for (int j = 0; j < boardWidth; j++) {
+                char letter = gameBoard[i][j];
+                if (letter != 0) {
+                    currentWord += letter;
+                    // Check if we have a word
+                    if (currentWord.length() > 1 && currentWord.length() <= 8 && dictionaryTrie.search(currentWord)) {
+                        // Highlight the word
+                        for (int k = wordStartIndex; k <= j; k++) {
+                            highlightedCells[i][k] = true;
+                        }
+                    }
+                } else {
+                    // Reset the current word if we encounter an empty cell
+                    currentWord = "";
+                    wordStartIndex = j + 1;
+                }
+            }
+        }
+
+        // Loop through each column
+        for (int j = 0; j < boardWidth; j++) {
+            String currentWord = "";
+            int wordStartIndex = 0;
+            for (int i = 0; i < boardHeight; i++) {
+                char letter = gameBoard[i][j];
+                if (letter != 0) {
+                    currentWord += letter;
+                    // Check if we have a word
+                    if (currentWord.length() > 1 && currentWord.length() <= 8 && dictionaryTrie.search(currentWord)) {
+                        // Highlight the word
+                        for (int k = wordStartIndex; k <= i; k++) {
+                            highlightedCells[k][j] = true;
+                        }
+                    }
+                } else {
+                    // Reset the current word if we encounter an empty cell
+                    currentWord = "";
+                    wordStartIndex = i + 1;
+                }
+            }
+        }
     }
 
 
@@ -434,10 +506,15 @@ public class LetterTetrisView extends View {
           } else {
             mergeTetrominoToBoard();
             clearFullRows();
+
             currentTetromino = createRandomTetromino();
           }
-         }else stopGame();
+         }else {
+            stopGame();
+            invalidate();
 
+        Log.d("inside UpdateGame", "Just hit stopgame");
+        }
     }
 
     @Override
